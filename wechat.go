@@ -3,15 +3,21 @@ package wechat
 import (
 	"crypto/sha1"
 	"encoding/hex"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"sort"
 	"strings"
+	"time"
 )
 
-type WechatHandleFunc func(info map[string]string)
+func init() {
+	log.Println("wechat init")
+}
+
+type WechatHandleFunc func(msg map[string]string) interface{}
 
 type Wechat struct {
 	Token   string
@@ -25,9 +31,9 @@ func New(token string, handler WechatHandleFunc) (wechat *Wechat) {
 	return
 }
 
-func (w *Wechat) CheckSignature(query map[string]string) bool {
+func CheckSignature(query url.Values, token string) bool {
 	// sort by dict
-	arr := sort.StringSlice{w.Token, query["nonce"], query["timestamp"]}
+	arr := sort.StringSlice{token, query.Get("nonce"), query.Get("timestamp")}
 	arr.Sort()
 
 	// sha1 hex
@@ -35,7 +41,7 @@ func (w *Wechat) CheckSignature(query map[string]string) bool {
 	sha1Ctx.Write([]byte(strings.Join(arr, "")))
 	cipherStr := hex.EncodeToString(sha1Ctx.Sum(nil))
 
-	if query["signature"] == cipherStr {
+	if query.Get("signature") == cipherStr {
 		return true
 	}
 	return false
@@ -44,14 +50,46 @@ func (w *Wechat) CheckSignature(query map[string]string) bool {
 func HandleMessage(token string, handler WechatHandleFunc) http.HandlerFunc {
 	wechat := New(token, handler)
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			log.Fatal("Read Request Content Fail")
+		r.ParseForm()
+
+		if !CheckSignature(r.Form, wechat.Token) {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Write([]byte("Invalid Signature"))
+			return
 		}
-		fmt.Println(string(body))
-		info := make(map[string]string)
-		info["FromUserName"] = "feit"
-		wechat.handler(info)
-		fmt.Fprintf(w, "Hello Wechat")
+
+		if r.Method == "GET" {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(r.Form.Get("echostr")))
+
+		} else if r.Method == "POST" {
+			body, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				// TODO handle err
+				log.Println(err)
+			}
+			msg := XMLToMessage(body)
+			replyMsg := wechat.handler(msg)
+			replyMessage := ReplyMessage{
+				ToUserName:   msg["FromUserName"],
+				FromUserName: msg["ToUserName"],
+				CreateTime:   time.Now().Unix(),
+			}
+
+			if value, ok := replyMsg.(string); ok {
+				replyMessage.MsgType = "text"
+				replyMessage.IsText = true
+				replyMessage.Content = value
+			}
+
+			log.Println(replyMessage)
+			ReplyMsgTemplate.Execute(os.Stdout, replyMessage)
+			ReplyMsgTemplate.Execute(w, replyMessage)
+			w.Write([]byte("Hello Wechat"))
+
+		} else {
+			w.WriteHeader(http.StatusNotImplemented)
+			w.Write([]byte("Not Implemented"))
+		}
 	}
 }
