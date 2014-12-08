@@ -85,7 +85,6 @@ func HandleMessage(token string, handler WechatHandleFunc) http.HandlerFunc {
 			log.Println(replyMessage)
 			ReplyMsgTemplate.Execute(os.Stdout, replyMessage)
 			ReplyMsgTemplate.Execute(w, replyMessage)
-			w.Write([]byte("Hello Wechat"))
 
 		} else {
 			w.WriteHeader(http.StatusNotImplemented)

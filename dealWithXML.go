@@ -24,7 +24,7 @@ func init() {
 	MsgIdRe = regexp.MustCompile(`<MsgId>(\d+)</MsgId>`)
 	ContentRe = regexp.MustCompile(`<Content><!\[CDATA\[(.*)\]\]></Content>`)
 	replyMsgTemplateStr := strings.Join(replyMsgTemplateStrArr, "")
-	ReplyMsgTemplate = template.Must(template.New("replyMessage").Parse(replyMsgTemplateStr))
+	ReplyMsgTemplate = template.Must(template.New("replyMessageTpl").Parse(replyMsgTemplateStr))
 }
 
 func XMLToMessage(xml []byte) (msg map[string]string) {
