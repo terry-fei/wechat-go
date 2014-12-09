@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
+	"time"
 )
 
 var (
@@ -27,8 +28,8 @@ func init() {
 	ReplyMsgTemplate = template.Must(template.New("replyMessageTpl").Parse(replyMsgTemplateStr))
 }
 
-func XMLToMessage(xml []byte) (msg map[string]string) {
-	msg = make(map[string]string)
+func XMLToMessage(xml []byte) (msg map[string]interface{}) {
+	msg = make(map[string]interface{})
 
 	// get commom attrbute
 	msg["ToUserName"] = string(ToUserNameRe.FindSubmatch(xml)[1])
@@ -54,6 +55,61 @@ func XMLToMessage(xml []byte) (msg map[string]string) {
 	return
 }
 
+type Message struct {
+	Msg      map[string]interface{}
+	ReplyMsg map[string]interface{}
+}
+
+func (msg *Message) Reply(replyMsg interface{}) {
+	msg.ReplyMsg["ToUserName"] = msg.Msg["FromUserName"]
+	msg.ReplyMsg["FromUserName"] = msg.Msg["ToUserName"]
+	msg.ReplyMsg["CreateTime"] = time.Now().Unix()
+
+	if value, ok := replyMsg.(string); ok {
+		msg.ReplyMsg["MsgType"] = "text"
+		msg.ReplyMsg["IsText"] = true
+		msg.ReplyMsg["Content"] = value
+
+	} else if value, ok := replyMsg.([]News); ok {
+		msg.ReplyMsg["MsgType"] = "news"
+		msg.ReplyMsg["IsNews"] = true
+		msg.ReplyMsg["NewsLength"] = len(value)
+		msg.ReplyMsg["News"] = value
+
+	} else if value, ok := replyMsg.(CustomService); ok {
+		msg.ReplyMsg["MsgType"] = "transfer_customer_service"
+		msg.ReplyMsg["NeedCustomService"] = true
+		msg.ReplyMsg["KfAccount"] = value.KfAccount
+
+	} else if value, ok := replyMsg.(Image); ok {
+		msg.ReplyMsg["MsgType"] = "image"
+		msg.ReplyMsg["IsImage"] = true
+		msg.ReplyMsg["MediaId"] = value.MediaId
+
+	} else if value, ok := replyMsg.(Voice); ok {
+		msg.ReplyMsg["MsgType"] = "voice"
+		msg.ReplyMsg["IsVoice"] = true
+		msg.ReplyMsg["MediaId"] = value.MediaId
+
+	} else if value, ok := replyMsg.(Video); ok {
+		msg.ReplyMsg["MsgType"] = "video"
+		msg.ReplyMsg["IsVideo"] = true
+		msg.ReplyMsg["Title"] = value.Title
+		msg.ReplyMsg["Desc"] = value.Desc
+		msg.ReplyMsg["MediaId"] = value.MediaId
+
+	} else if value, ok := replyMsg.(Music); ok {
+		msg.ReplyMsg["MsgType"] = "music"
+		msg.ReplyMsg["IsMusic"] = true
+		msg.ReplyMsg["Title"] = value.Title
+		msg.ReplyMsg["Desc"] = value.Desc
+		msg.ReplyMsg["MusicUrl"] = value.MusicUrl
+		msg.ReplyMsg["HQMusicUrl"] = value.HQMusicUrl
+		msg.ReplyMsg["ThumbMediaId"] = value.ThumbMediaId
+
+	}
+}
+
 type News struct {
 	Title  string
 	Desc   string
@@ -61,27 +117,30 @@ type News struct {
 	Url    string
 }
 
-type ReplyMessage struct {
-	ToUserName        string
-	FromUserName      string
-	CreateTime        int64
-	MsgType           string
-	IsText            bool
-	IsNews            bool
-	IsMusic           bool
-	IsVoice           bool
-	IsImage           bool
-	IsVideo           bool
-	NeedCustomService bool
-	Content           string
-	NewsLength        int
-	NewsList          []News
-	Title             string
-	Desc              string
-	MusicUrl          string
-	HQMusicUrl        string
-	MediaId           string
-	KfAccount         string
+type Image struct {
+	MediaId string
+}
+
+type Voice struct {
+	MediaId string
+}
+
+type Video struct {
+	Title   string
+	Desc    string
+	MediaId string
+}
+
+type Music struct {
+	Title        string
+	Desc         string
+	MusicUrl     string
+	HQMusicUrl   string
+	ThumbMediaId string
+}
+
+type CustomService struct {
+	KfAccount string
 }
 
 var replyMsgTemplateStrArr = []string{
@@ -110,6 +169,7 @@ var replyMsgTemplateStrArr = []string{
 	"<Description><![CDATA[{{.Desc}}]]></Description>",
 	"<MusicUrl><![CDATA[{{.MusicUrl}}]]></MusicUrl>",
 	"<HQMusicUrl><![CDATA[{{.HQMusicUrl}}]]></HQMusicUrl>",
+	"<ThumbMediaId><![CDATA[{{.ThumbMediaId}}]]></ThumbMediaId>",
 	"</Music>",
 	"{{else if .IsVoice}}",
 	"<Voice>",

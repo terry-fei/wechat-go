@@ -10,14 +10,13 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"time"
 )
 
 func init() {
 	log.Println("wechat init")
 }
 
-type WechatHandleFunc func(msg map[string]string) interface{}
+type WechatHandleFunc func(msg *Message)
 
 type Wechat struct {
 	Token   string
@@ -68,23 +67,14 @@ func HandleMessage(token string, handler WechatHandleFunc) http.HandlerFunc {
 				// TODO handle err
 				log.Println(err)
 			}
-			msg := XMLToMessage(body)
-			replyMsg := wechat.handler(msg)
-			replyMessage := ReplyMessage{
-				ToUserName:   msg["FromUserName"],
-				FromUserName: msg["ToUserName"],
-				CreateTime:   time.Now().Unix(),
+			msg := Message{
+				Msg:      XMLToMessage(body),
+				ReplyMsg: make(map[string]interface{}),
 			}
 
-			if value, ok := replyMsg.(string); ok {
-				replyMessage.MsgType = "text"
-				replyMessage.IsText = true
-				replyMessage.Content = value
-			}
-
-			log.Println(replyMessage)
-			ReplyMsgTemplate.Execute(os.Stdout, replyMessage)
-			ReplyMsgTemplate.Execute(w, replyMessage)
+			wechat.handler(&msg)
+			ReplyMsgTemplate.Execute(os.Stdout, msg.ReplyMsg)
+			ReplyMsgTemplate.Execute(w, msg.ReplyMsg)
 
 		} else {
 			w.WriteHeader(http.StatusNotImplemented)
