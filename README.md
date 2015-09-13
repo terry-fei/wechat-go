@@ -6,7 +6,7 @@ wechat
 Installation
 ======
 ```
-$ go get github.com/ifeiteng/wechat
+$ go get github.com/feit/wechat
 ```
 
 Usage
